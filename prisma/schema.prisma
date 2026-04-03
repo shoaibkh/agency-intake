@@ -1,0 +1,165 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum UserRole {
+  ADMIN
+  REVIEWER
+}
+
+enum BriefSource {
+  FORM
+  WEBHOOK
+}
+
+enum BriefStage {
+  NEW
+  UNDER_REVIEW
+  PROPOSAL_SENT
+  WON
+  ARCHIVED
+}
+
+enum AiJobStatus {
+  PENDING
+  PROCESSING
+  DONE
+  FAILED
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         UserRole @default(REVIEWER)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  assignedBriefs Brief[] @relation("AssignedBriefs")
+  authoredNotes  BriefNote[]
+  assignedBy     BriefAssignment[] @relation("AssignedBy")
+  assignedTo     BriefAssignment[] @relation("AssignedTo")
+  createdEvents  BriefEvent[] @relation("ActorEvents")
+  overriddenAnalyses BriefAnalysis[] @relation("AnalysisOverride")
+}
+
+model Brief {
+  id           String      @id @default(cuid())
+  title        String
+  description  String
+  budgetTier   String
+  urgency      String
+  contactName  String
+  contactEmail String
+  contactPhone String?
+  source       BriefSource @default(FORM)
+  stage        BriefStage   @default(NEW)
+  assignedToId String?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  assignedTo   User?            @relation("AssignedBriefs", fields: [assignedToId], references: [id])
+  analysis     BriefAnalysis?
+  events       BriefEvent[]
+  notes        BriefNote[]
+  assignments  BriefAssignment[]
+  aiJobs       AiJob[]
+
+  @@index([stage, updatedAt])
+  @@index([assignedToId, stage])
+  @@index([createdAt, id])
+}
+
+model BriefAnalysis {
+  id                 String   @id @default(cuid())
+  briefId            String   @unique
+  rawModelResponse    Json
+  extractedFeatures   Json
+  category           String
+  effortMinHours     Int
+  effortMaxHours     Int
+  suggestedStack     Json
+  complexityScore    Int
+  summary            String
+  overriddenById     String?
+  overriddenReason   String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  brief              Brief   @relation(fields: [briefId], references: [id], onDelete: Cascade)
+  overriddenBy       User?   @relation("AnalysisOverride", fields: [overriddenById], references: [id])
+
+  @@index([category, createdAt])
+  @@index([complexityScore])
+}
+
+model BriefEvent {
+  id         String    @id @default(cuid())
+  briefId    String
+  type       String
+  fromStage  BriefStage?
+  toStage    BriefStage?
+  actorId    String?
+  metadata   Json?
+  createdAt  DateTime  @default(now())
+
+  brief      Brief     @relation(fields: [briefId], references: [id], onDelete: Cascade)
+  actor      User?     @relation("ActorEvents", fields: [actorId], references: [id])
+
+  @@index([briefId, createdAt])
+}
+
+model BriefNote {
+  id         String   @id @default(cuid())
+  briefId    String
+  parentId   String?
+  authorId   String
+  body       String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  brief      Brief     @relation(fields: [briefId], references: [id], onDelete: Cascade)
+  parent     BriefNote? @relation("NoteThread", fields: [parentId], references: [id])
+  children   BriefNote[] @relation("NoteThread")
+  author     User      @relation(fields: [authorId], references: [id])
+
+  @@index([briefId, createdAt])
+}
+
+model BriefAssignment {
+  id          String   @id @default(cuid())
+  briefId     String
+  assignedById String
+  assignedToId String
+  reason      String?
+  createdAt   DateTime @default(now())
+
+  brief       Brief @relation(fields: [briefId], references: [id], onDelete: Cascade)
+  assignedBy  User  @relation("AssignedBy", fields: [assignedById], references: [id])
+  assignedTo  User  @relation("AssignedTo", fields: [assignedToId], references: [id])
+
+  @@index([briefId, createdAt])
+}
+
+model AiJob {
+  id            String      @id @default(cuid())
+  briefId       String
+  status        AiJobStatus @default(PENDING)
+  provider      String
+  promptVersion String
+  retryCount    Int         @default(0)
+  lastError     String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  brief         Brief       @relation(fields: [briefId], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt])
+}
