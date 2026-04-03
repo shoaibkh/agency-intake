@@ -17,8 +17,9 @@ export async function setCacheJSON(key: string, value: unknown, ttlSeconds = 60)
 }
 
 export async function invalidateAnalyticsCache() {
-  if (!redis) return;
-  await Promise.all(Object.values(keys).map((key) => redis.del(key)));
+  const client = redis;
+  if (!client) return;
+  await Promise.all(Object.values(keys).map((key) => client.del(key)));
 }
 
 export { keys as cacheKeys };
