@@ -49,3 +49,8 @@
 
 ## Project Link
 link --> https://agency-intake-ed8j7tf9l-shoaibkhs-projects.vercel.app/
+
+- Use Neon for postgresql db
+- use upstash redis for rate limit
+- use `@dnd-kit` for kanban stage management
+- use Open-AI LLM provider for AI brief analysis
